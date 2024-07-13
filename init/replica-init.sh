@@ -15,12 +15,14 @@ rm -rf "$PGDATA"/*
 # Perform base backup
 PGPASSWORD=rep_password pg_basebackup -h postgres-master -D "$PGDATA" -U replicator -v -P --wal-method=stream
 
-# Create recovery.conf
-cat <<EOF2 > "$PGDATA/recovery.conf"
-standby_mode = 'on'
+# Create standby.signal file for PostgreSQL 12+
+touch "$PGDATA/standby.signal"
+
+# Configure recovery settings
+cat <<EOF > "$PGDATA/postgresql.auto.conf"
 primary_conninfo = 'host=postgres-master port=5432 user=replicator password=rep_password'
 primary_slot_name = 'replica_slot'
-EOF2
+EOF
 
 # Start PostgreSQL server
 pg_ctl -D "$PGDATA" -o "-c listen_addresses='*'" -w start

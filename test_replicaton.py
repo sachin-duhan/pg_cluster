@@ -5,6 +5,24 @@ import time
 master_conn_str = "postgresql://postgres:postgres@localhost:5432/mydatabase"
 replica_conn_str = "postgresql://postgres:postgres@localhost:5433/mydatabase"
 
+# Function to create table if it doesn't exist
+def create_table(conn_str):
+    try:
+        conn = psycopg2.connect(conn_str)
+        cur = conn.cursor()
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS replication_test (
+            id SERIAL PRIMARY KEY,
+            data TEXT
+        );
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("Table replication_test is ready.")
+    except Exception as e:
+        print(f"Error creating table: {e}")
+
 # Insert data into the master
 def insert_data():
     try:
@@ -37,6 +55,15 @@ def check_data(inserted_id):
         print(f"Error checking data in replica: {e}")
 
 if __name__ == "__main__":
+    # Ensure the table exists on the master
+    create_table(master_conn_str)
+    
+    # Insert data into the master and wait for replication
     inserted_id = insert_data()
-    time.sleep(5)  # Wait for replication to occur
+    time.sleep(1)  # Wait for replication to occur
+
+    # Ensure the table exists on the replica (shouldn't be necessary if replication is working)
+    create_table(replica_conn_str)
+
+    # Check if the data is replicated
     check_data(inserted_id)

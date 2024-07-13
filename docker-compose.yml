@@ -17,6 +17,11 @@ services:
       - "5432:5432"
     networks:
       - postgres-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres-replica:
     image: postgres:16
@@ -36,7 +41,8 @@ services:
     networks:
       - postgres-network
     depends_on:
-      - postgres-master
+      postgres-master:
+        condition: service_healthy
 
 volumes:
   master_data:
