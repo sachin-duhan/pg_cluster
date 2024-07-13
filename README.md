@@ -1,4 +1,4 @@
-# PostgreSQL Cluster with Replication using Docker Compose
+# PostgreSQL Cluster with Replication
 
 This repository provides a setup for a PostgreSQL cluster with a primary (master) node and one replica (standby) node using Docker Compose. This setup ensures data redundancy and increases data availability.
 
@@ -27,127 +27,11 @@ This setup uses streaming replication to keep the replica in sync with the prima
 
 ### 1. Create the Docker Compose File
 
-Create a file named `docker-compose.yml` with the following content:
-
-```yaml
-version: '3.8'
-
-services:
-  postgres-master:
-    image: postgres:16
-    container_name: postgres-master
-    environment:
-      POSTGRES_DB: mydatabase
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_REPLICATION_USER: replicator
-      POSTGRES_REPLICATION_PASSWORD: rep_password
-    volumes:
-      - master_data:/var/lib/postgresql/data
-      - ./init/master-init.sh:/docker-entrypoint-initdb.d/master-init.sh
-    ports:
-      - "5432:5432"
-    networks:
-      - postgres-network
-
-  postgres-replica:
-    image: postgres:16
-    container_name: postgres-replica
-    environment:
-      POSTGRES_DB: mydatabase
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_REPLICATION_USER: replicator
-      POSTGRES_REPLICATION_PASSWORD: rep_password
-      POSTGRES_MASTER_HOST: postgres-master
-    volumes:
-      - replica_data:/var/lib/postgresql/data
-      - ./init/replica-init.sh:/docker-entrypoint-initdb.d/replica-init.sh
-    ports:
-      - "5433:5432"
-    networks:
-      - postgres-network
-    depends_on:
-      - postgres-master
-
-volumes:
-  master_data:
-  replica_data:
-
-networks:
-  postgres-network:
-    driver: bridge
-```
+Create a file named `docker-compose.yml` with the necessary configuration for the primary (master) and replica (standby) nodes.
 
 ### 2. Create Replication Initialization Scripts
 
-Create a directory named `init` and add the following scripts.
-
-#### 2.1. `master-init.sh` for the Master
-
-Create a file named `init/master-init.sh` with the following content:
-
-```sh
-#!/bin/bash
-set -e
-
-# Start PostgreSQL server
-docker-entrypoint.sh postgres &
-
-# Wait for PostgreSQL to start
-until pg_isready -h localhost; do
-  sleep 1
-done
-
-# Create replication user and configure replication
-psql -U postgres -c "CREATE USER replicator REPLICATION LOGIN ENCRYPTED PASSWORD 'rep_password';"
-psql -U postgres -c "ALTER SYSTEM SET wal_level = replica;"
-psql -U postgres -c "ALTER SYSTEM SET max_wal_senders = 10;"
-psql -U postgres -c "ALTER SYSTEM SET max_replication_slots = 10;"
-psql -U postgres -c "SELECT pg_reload_conf();"
-
-# Create replication slot
-psql -U postgres -c "SELECT * FROM pg_create_physical_replication_slot('replica_slot');"
-
-# Keep the container running
-tail -f /dev/null
-```
-
-#### 2.2. `replica-init.sh` for the Replica
-
-Create a file named `init/replica-init.sh` with the following content:
-
-```sh
-#!/bin/bash
-set -e
-
-# Wait for the master to be available
-until pg_isready -h postgres-master; do
-  sleep 1
-done
-
-# Stop PostgreSQL server
-pg_ctl -D "$PGDATA" -m fast -w stop
-
-# Clean up old data
-rm -rf "$PGDATA"/*
-
-# Perform base backup
-PGPASSWORD=rep_password pg_basebackup -h postgres-master -D "$PGDATA" -U replicator -v -P --wal-method=stream
-
-# Create recovery.conf
-cat <<EOF > "$PGDATA/recovery.conf"
-standby_mode = 'on'
-primary_conninfo = 'host=postgres-master port=5432 user=replicator password=rep_password'
-primary_slot_name = 'replica_slot'
-EOF
-
-# Start PostgreSQL server
-pg_ctl -D "$PGDATA" -o "-c listen_addresses='*'" -w start
-
-# Keep the container running
-tail -f /dev/null
-```
+Create a directory named `init` and add the initialization scripts for both the master and replica nodes.
 
 ### 3. Bring Up the Cluster
 
@@ -164,15 +48,13 @@ Replication in PostgreSQL involves copying data from one database server (the pr
 ### Primary (Master) Configuration
 
 1. **Configure WAL (Write-Ahead Logging) Settings:**
-   - `wal_level = replica`
-   - `max_wal_senders = 10`
-   - `max_replication_slots = 10`
+   - Set appropriate `wal_level`, `max_wal_senders`, and `max_replication_slots`.
 
 2. **Create a Replication User:**
-   - `CREATE USER replicator REPLICATION LOGIN ENCRYPTED PASSWORD 'rep_password';`
+   - Create a user with replication privileges.
 
 3. **Create Replication Slots:**
-   - `SELECT * FROM pg_create_physical_replication_slot('replica_slot');`
+   - Create the necessary replication slots.
 
 ### Replica (Standby) Configuration
 
@@ -180,7 +62,7 @@ Replication in PostgreSQL involves copying data from one database server (the pr
    - Perform a base backup of the primary server.
 
 2. **Streaming Replication Configuration:**
-   - Configure the `primary_conninfo` parameter and create a `recovery.conf` file on the replica.
+   - Configure the `primary_conninfo` parameter and create the necessary signal files on the replica.
 
 ### Streaming Replication Process
 
@@ -196,7 +78,7 @@ Replication in PostgreSQL involves copying data from one database server (the pr
 ## Monitoring and Failover
 
 - **Monitoring:**
-  - Use `pg_stat_replication` and `pg_stat_wal_receiver` views to monitor the replication status.
+  - Use PostgreSQL views such as `pg_stat_replication` and `pg_stat_wal_receiver` to monitor the replication status.
 
 - **Failover:**
   - In case of primary failure, promote a replica to primary manually or using tools like `repmgr` or `Patroni`.
