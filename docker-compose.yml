@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  postgres-master:
+    image: postgres:16
+    container_name: postgres-master
+    environment:
+      POSTGRES_DB: mydatabase
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: rep_password
+    volumes:
+      - master_data:/var/lib/postgresql/data
+      - ./init/master-init.sh:/docker-entrypoint-initdb.d/master-init.sh
+    ports:
+      - "5432:5432"
+    networks:
+      - postgres-network
+
+  postgres-replica:
+    image: postgres:16
+    container_name: postgres-replica
+    environment:
+      POSTGRES_DB: mydatabase
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: rep_password
+      POSTGRES_MASTER_HOST: postgres-master
+    volumes:
+      - replica_data:/var/lib/postgresql/data
+      - ./init/replica-init.sh:/docker-entrypoint-initdb.d/replica-init.sh
+    ports:
+      - "5433:5432"
+    networks:
+      - postgres-network
+    depends_on:
+      - postgres-master
+
+volumes:
+  master_data:
+  replica_data:
+
+networks:
+  postgres-network:
+    driver: bridge
