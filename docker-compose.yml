@@ -14,11 +14,11 @@ services:
       - master_data:/var/lib/postgresql/data
       - ./init/master-init.sh:/docker-entrypoint-initdb.d/master-init.sh
     ports:
-      - "5432:5432"
+      - 5432:5432
     networks:
       - postgres-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [CMD-SHELL, pg_isready -U postgres]
       interval: 10s
       timeout: 5s
       retries: 5

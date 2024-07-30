@@ -23,10 +23,6 @@ echo "host all all all scram-sha-256" >> "$PGDATA/pg_hba.conf"
 # Reload the PostgreSQL configuration
 psql -U postgres -c "SELECT pg_reload_conf();"
 
-# Log the current pg_hba.conf
-echo "Current pg_hba.conf content:"
-cat "$PGDATA/pg_hba.conf"
-
 # Create replication slot
 psql -U postgres -c "SELECT * FROM pg_create_physical_replication_slot('replica_slot');"
 
